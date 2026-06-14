@@ -1,0 +1,25 @@
+{
+  "name": "web-crawler",
+  "version": "1.0.0",
+  "description": "Web Crawler",
+  "license": "ISC",
+  "author": "VISH_09",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "tsx ./src/index.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^25.9.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1",
+    "p-limit": "^7.3.0",
+    "puppeteer": "^25.1.0"
+  }
+}
