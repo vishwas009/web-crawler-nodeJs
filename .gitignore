@@ -1,3 +1,6 @@
 node_modules/
 report.json
 output.txt
+reports/
+profile/
+html.txt
