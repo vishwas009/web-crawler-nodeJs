@@ -3,11 +3,13 @@ import fs from "node:fs";
 
 import { type ExtractedPageData } from "./crawl.js";
 
-export function writeJSONReport(pageData: Record<string, ExtractedPageData>, filename = "report.json"): void {
+export function writeJSONReport(pageData: Record<string, ExtractedPageData>, url: string): void {
+    const urlObj = new URL(url);
     const sorted = Object.values(pageData).sort((a, b) => a.url.localeCompare(b.url));
-    
+    const filename = path.resolve(process.cwd(), 'reports', urlObj.hostname + `_${Date.now()}.json`);
+
     fs.writeFileSync(
-        path.resolve(process.cwd(), filename), 
+        filename, 
         JSON.stringify(sorted, null, 2)
     );
 }

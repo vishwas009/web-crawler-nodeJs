@@ -3,6 +3,8 @@
     "target": "esnext",
     "module": "nodenext",
     "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "moduleResolution": "nodenext"
   },
   "include": ["./src/**/*.ts"],
