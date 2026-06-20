@@ -21,7 +21,7 @@ async function main() {
   }
 
   const url = argv[2];
-  const maxConcurrency = argv[3] ? parseInt(argv[3], 10) : 2;
+  const maxConcurrency = argv[3] ? parseInt(argv[3], 10) : 1;
   const maxPages = argv[4] ? parseInt(argv[4], 10) : 100;
 
   if (isNaN(maxConcurrency) || isNaN(maxPages)) {
@@ -31,9 +31,9 @@ async function main() {
 
   try {
     const pages = await crawlSiteAsync(url, maxConcurrency, maxPages);
-    writeJSONReport(pages);
+    writeJSONReport(pages, url);
 
-    console.log("Finished crawling. Report generated as report.json");
+    console.log('Crawling finished generated JSON report');
     process.exit(0);
   } catch (error) {
     console.error("Error occurred while crawling the site:", error);
