@@ -13,3 +13,12 @@ export function writeJSONReport(pageData: Record<string, ExtractedPageData>, url
         JSON.stringify(sorted, null, 2)
     );
 }
+
+export function writeJSONReport_One(pageData: ExtractedPageData, dir_path: string): void {
+    const filename = path.resolve(dir_path, 'report.json');
+
+    fs.writeFileSync(
+        filename, 
+        JSON.stringify(pageData, null, 2)
+    );
+}
