@@ -42,7 +42,7 @@ export default class ConcurrentCrawler {
 
     if (this.visitedURLs.size >= this.maxPages) {
       this.shouldStop = true;
-      console.log(`Reached max page limit of ${this.maxPages}. Stopping crawl.`,);
+      // console.log(`Reached max page limit of ${this.maxPages}. Stopping crawl.`,);
       return false;
     }
 
@@ -93,6 +93,7 @@ export default class ConcurrentCrawler {
         let scrollTimes = 0;
         let totalHeight = 0;
         const distance = 300; // Pixels per scroll step
+        let retry = 4;
 
         const timer = setInterval(() => {
           window.scrollBy(0, distance);
@@ -104,8 +105,9 @@ export default class ConcurrentCrawler {
 
           // Stop when we reach the absolute bottom of the page or scroll limit reached
           if (totalHeight >= scrollHeight - window.innerHeight || scrollTimes > max_scrolls) {
-            if(scrollTimes <= max_scrolls) {
+            if(scrollTimes <= max_scrolls && retry > 0) {
               totalHeight -= distance;
+              retry--;
             } else {
               clearInterval(timer);
               resolve();
@@ -221,12 +223,14 @@ export default class ConcurrentCrawler {
         }
 
         if(this.config.HEADLESS === false) {
-          console.log("Launched in Headfull mode, Waiting for user input");
+          console.log("Waiting for user input");
+          page.evaluate(() => {
+            alert('Page Launched in Headfull mode, press a key in terminal when done to continue crawling.');
+          });
           const key = await this.waitForKeyPress();
           console.log("Continuing Crawling");
         }
 
-        await this.scrollPage(page, this.config.SCROLLS_LIMIT);
 
         try {
           await page.waitForNetworkIdle({ idleTime: 1000, timeout: this.config.DEFAULT_TIMEOUT });
@@ -256,11 +260,11 @@ export default class ConcurrentCrawler {
         );
       } finally {
         if (page) {
-          console.log(`Waiting for all Image tasks to complete. Pending: ${imageTasks.size}`);
+          console.log(`Waiting for all tasks to complete. Pending: ${imageTasks.size}`);
 
           const timeout = new Promise((resolve) =>
             setTimeout(() => {
-              console.log("Timeout Rejecting rest pending images tasks");
+              console.log("Timeout Rejecting rest pending tasks");
               resolve();
             }, this.config.ALL_TASKS_TIMEOUT),
           );
@@ -295,6 +299,8 @@ export default class ConcurrentCrawler {
     if (!this.addPageVisit(normalizedURL)) {
       return;
     }
+
+    console.log(`Url added to queue: ${currentURL}`);
 
     const output_dir = path.resolve(this.dirPath, urlObj.pathname.replaceAll('/', '_'));
     const html = await this.limit(async () => {
