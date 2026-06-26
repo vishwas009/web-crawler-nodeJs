@@ -6,6 +6,7 @@ export type ExtractedPageData = {
   first_paragraph: string;
   outgoing_links: string[];
   image_urls: string[];
+  media_urls: string[];
 };
 
 export function normalizeURL(url: string): string {
@@ -110,11 +111,45 @@ export function getImagesFromHTML(html: string, baseURL: string): string[] {
   }
 }
 
+export function getMediaFromHTML(html: string, baseURL: string): string[] {
+  try {
+    const dom = new JSDOM(html);
+    const mediaElements = dom.window.document.querySelectorAll("audio, video");
+    const urls: string[] = [];
+
+    mediaElements.forEach((media) => {
+      const src = media.getAttribute("src");
+
+      if (src) {
+        try {
+          if (/\s/.test(src)) {
+            return;
+          }
+
+          const urlObj = new URL(src, baseURL);
+          if (urlObj.protocol === "http:" || urlObj.protocol === "https:") {
+            // TODO: Implement media type checking
+            urls.push(urlObj.href.replace(/\/$/, ""));
+          }
+        } catch (error) {
+          // Ignore invalid URLs
+        }
+      }
+    });
+
+    return urls;
+  } catch (error) {
+    console.error("Error parsing HTML for media URLs:", error);
+    return [];
+  }
+}
+
 export function extractPageData(html: string, pageURL: string): ExtractedPageData {
   const heading = getHeadingFromHTML(html);
   const firstParagraph = getFirstParagraphFromHTML(html);
   const urls = getURLsFromHTML(html, pageURL);
   const images = getImagesFromHTML(html, pageURL);
+  const medias = getMediaFromHTML(html, pageURL);
 
   return {
     url: pageURL,
@@ -122,6 +157,7 @@ export function extractPageData(html: string, pageURL: string): ExtractedPageDat
     first_paragraph: firstParagraph,
     outgoing_links: urls,
     image_urls: images,
+    media_urls: medias,
   };
 }
 

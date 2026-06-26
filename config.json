@@ -1,0 +1,12 @@
+{
+    "DEFAULT_TIMEOUT": 60000,
+    "ALL_TASKS_TIMEOUT": 90000,
+    "HEADLESS": true,
+    "SCROLL_TYPE": "slow",
+    "SCROLLS_LIMIT": 35,
+    "MAX_PAGES": 100,
+    "MAX_CONCURRENCY": 3,
+    "SAVE_IMAGES": false,
+    "IGNORE_SMALL_IMAGES": true,
+    "SMALL_IMAGE_SIZE": 2048
+}
