@@ -1,18 +1,20 @@
 import { JSDOM } from "jsdom";
-
-export type ExtractedPageData = {
-  url: string;
-  heading: string;
-  first_paragraph: string;
-  outgoing_links: string[];
-  image_urls: string[];
-  media_urls: string[];
-};
+import { type ExtractedPageData } from "../types.js";
 
 export function normalizeURL(url: string): string {
   const urlObj = new URL(url);
 
   return `${urlObj.hostname}${urlObj.pathname.replace(/\/$/, "")}`;
+}
+
+export function resolveUrl(url: string | null, baseUrl: string): string | null {
+  if (!url) return null;
+
+  try {
+    return new URL(url, baseUrl).href.replace(/\/$/, "");
+  } catch (error) {
+    return null;
+  }
 }
 
 export function getHeadingFromHTML(html: string): string {
@@ -53,18 +55,10 @@ export function getURLsFromHTML(html: string, baseURL: string): string[] {
     anchorElements.forEach((anchor) => {
       const href = anchor.getAttribute("href");
 
-      if (href) {
-        try {
-          if (/\s/.test(href)) {
-            return;
-          }
-
-          const urlObj = new URL(href, baseURL);
-          if (urlObj.protocol === "http:" || urlObj.protocol === "https:") {
-            urls.push(urlObj.href.replace(/\/$/, ""));
-          }
-        } catch (error) {
-          // Ignore invalid URLs
+      if (href && !(/\s/.test(href))) {
+        const finalUrl = resolveUrl(href, baseURL);
+        if (finalUrl) {
+          urls.push(finalUrl);
         }
       }
     });
@@ -120,19 +114,11 @@ export function getMediaFromHTML(html: string, baseURL: string): string[] {
     mediaElements.forEach((media) => {
       const src = media.getAttribute("src");
 
-      if (src) {
-        try {
-          if (/\s/.test(src)) {
-            return;
-          }
-
-          const urlObj = new URL(src, baseURL);
-          if (urlObj.protocol === "http:" || urlObj.protocol === "https:") {
-            // TODO: Implement media type checking
-            urls.push(urlObj.href.replace(/\/$/, ""));
-          }
-        } catch (error) {
-          // Ignore invalid URLs
+      if (src && !(/\s/.test(src))) {
+        const finalUrl = resolveUrl(src, baseURL);
+        if (finalUrl) {
+          // TODO: Implement media type checking
+          urls.push(finalUrl);
         }
       }
     });

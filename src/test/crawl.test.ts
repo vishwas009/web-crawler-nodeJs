@@ -6,7 +6,7 @@ import {
   getURLsFromHTML,
   getImagesFromHTML,
   extractPageData,
-} from "./crawl.js";
+} from "../utils/crawl.js";
 
 describe("normalizeURL Function", () => {
   test.for([
@@ -159,10 +159,10 @@ describe("getURLsFromHTML Function", () => {
       ],
     },
     {
-      name: "getURLsFromHTML filters non-http protocols",
+      name: "getURLsFromHTML find all protocols URLs",
       inputURL: "https://example.com",
       inputBody: `<html><body><a href="/page">HTTP</a><a href="mailto:test@example.com">Email</a><a href="ftp://files.example.com">FTP</a></body></html>`,
-      expected: ["https://example.com/page"],
+      expected: ["https://example.com/page", "mailto:test@example.com", "ftp://files.example.com"],
     },
     {
       name: "getURLsFromHTML with no href attribute",
@@ -344,6 +344,7 @@ describe("extractPageData Function", () => {
       first_paragraph: "This is the first paragraph.",
       outgoing_links: ["https://crawler-test.com/link1"],
       image_urls: ["https://crawler-test.com/image1.jpg"],
+      media_urls: []
     };
 
     expect(actual).toEqual(expected);
@@ -375,6 +376,7 @@ describe("extractPageData Function", () => {
         "https://cdn.example.com/header.png",
         "https://example.com/logo.png",
       ],
+      media_urls: []
     };
 
     expect(actual).toEqual(expected);
@@ -397,6 +399,7 @@ describe("extractPageData Function", () => {
       first_paragraph: "First paragraph content.",
       outgoing_links: ["https://test.com/page1"],
       image_urls: [],
+      media_urls: []
     };
 
     expect(actual).toEqual(expected);
@@ -417,6 +420,7 @@ describe("extractPageData Function", () => {
       first_paragraph: "",
       outgoing_links: [],
       image_urls: [],
+      media_urls: []
     };
 
     expect(actual).toEqual(expected);
@@ -443,6 +447,7 @@ describe("extractPageData Function", () => {
       first_paragraph: "Main content paragraph.",
       outgoing_links: [],
       image_urls: [],
+      media_urls: []
     };
 
     expect(actual).toEqual(expected);
@@ -476,6 +481,7 @@ describe("extractPageData Function", () => {
       first_paragraph: "",
       outgoing_links: [],
       image_urls: [],
+      media_urls: []
     };
 
     expect(actual).toEqual(expected);

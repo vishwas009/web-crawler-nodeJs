@@ -5,9 +5,12 @@ import pLimit from "p-limit";
 import { TimeoutError, type Browser, type Page, type HTTPResponse} from 'puppeteer'
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { normalizeURL, extractPageData, type ExtractedPageData } from "./crawl.js";
+import { type ExtractedPageData } from "./types.js";
+import { normalizeURL, extractPageData } from "./utils/crawl.js";
 import crawler_config from '../config.json' with {type: 'json'};
-import { writeJSONReport_One } from "./report.js";
+import { writeJSONReport_One } from "./utils/report.js";
+import MetadataExtractor from "./extractors/MetadataExtractor.js";
+import ContentExtractor from "./extractors/ContentExtractor.js";
 
 export default class ConcurrentCrawler {
   private baseUrl: string;
@@ -245,6 +248,16 @@ export default class ConcurrentCrawler {
         html = await page.content();
 
         if (html) {
+          // Extractors test code //
+
+          // const metaExtractor = new MetadataExtractor();
+          // console.log(metaExtractor.extract(html, url));
+          
+          // const contentExtractor = new ContentExtractor();
+          // const content = contentExtractor.extract(html, url);
+
+          // await fs.promises.writeFile(path.resolve(output_dir, 'content.json'), JSON.stringify(content, null, 2));
+
           break;
         } else {
           throw new Error("No HTML");

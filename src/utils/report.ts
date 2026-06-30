@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 
-import { type ExtractedPageData } from "./crawl.js";
+import { type ExtractedPageData } from "../types.js";
 
 export function writeJSONReport(pageData: Record<string, ExtractedPageData>, url: string): void {
     const urlObj = new URL(url);
