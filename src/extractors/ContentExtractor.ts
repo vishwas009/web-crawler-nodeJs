@@ -1,29 +1,39 @@
 import * as cheerio from "cheerio";
 import { type Content } from "./types.js";
 import { type Extractor } from "./Extractor.js";
+import { extractReadableContent } from "./readability.js";
 
 export default class ContentExtractor implements Extractor<Content> {
   public extract(html: string, pageUrl: string): Content {
+    const readability = extractReadableContent(html);
     const $ = cheerio.load(html);
+    const $_readability = readability?.content ? cheerio.load(readability.content) : null;
 
-    const root = this.getContentRoot($);
-    this.clean(root);
+    // const root = this.getContentRoot($);
+    this.clean($.root());
 
-    const paragraphs = this.extractParagraphs($, root);
-    const article = paragraphs.join("\n\n");
+    const paragraphs = this.extractParagraphs($_readability || $);
+    // const article = paragraphs.join("\n\n");
+    const article = readability?.textContent || paragraphs.join("\n\n");
     const wordCount = this.getWordCount(article);
 
     return {
-      title: $("title").text().trim(),
-      headings: this.extractHeadings($, root),
+      title: readability?.title || $("title").text().trim(),
+      headings: this.extractHeadings($),
       article,
       paragraphs,
-      lists: this.extractLists($, root),
-      blockquotes: this.extractBlockquotes($, root),
-      codeBlocks: this.extractCodeBlocks($, root),
+      lists: this.extractLists($),
+      blockquotes: this.extractBlockquotes($_readability || $),
+      codeBlocks: this.extractCodeBlocks($_readability || $),
       // tables: this.extractTables(root),
       wordCount,
       readingTime: Math.max(1, Math.ceil(wordCount / 200)),
+      excerpt: readability?.excerpt || "",
+      byline: readability?.byline || "",
+      dir: readability?.dir || "",
+      siteName: readability?.siteName || "",
+      lang: readability?.lang || "",
+      publishedTime: readability?.publishedTime || "",
     };
   }
 
@@ -43,31 +53,29 @@ export default class ContentExtractor implements Extractor<Content> {
       .remove();
   }
 
-  private extractHeadings($: cheerio.CheerioAPI, root: cheerio.Cheerio<any>) {
+  private extractHeadings($: cheerio.CheerioAPI) {
     return {
-      h1: this.getTexts($, root, "h1"),
-      h2: this.getTexts($, root, "h2"),
-      h3: this.getTexts($, root, "h3"),
-      h4: this.getTexts($, root, "h4"),
-      h5: this.getTexts($, root, "h5"),
-      h6: this.getTexts($, root, "h6"),
+      h1: this.getTexts($, "h1"),
+      h2: this.getTexts($, "h2"),
+      h3: this.getTexts($, "h3"),
+      h4: this.getTexts($, "h4"),
+      h5: this.getTexts($, "h5"),
+      h6: this.getTexts($, "h6"),
     };
   }
 
   private extractParagraphs(
-    $: cheerio.CheerioAPI,
-    root: cheerio.Cheerio<any>,
+    $: cheerio.CheerioAPI
   ): string[] {
-    return this.getTexts($, root, "p");
+    return this.getTexts($, "p");
   }
 
   private extractLists(
-    $: cheerio.CheerioAPI,
-    root: cheerio.Cheerio<any>,
+    $: cheerio.CheerioAPI
   ): string[][] {
     const lists: string[][] = [];
 
-    root.find("ul,ol").each((_, list) => {
+    $("ul,ol").each((_, list) => {
       const items: string[] = [];
 
       $(list)
@@ -89,16 +97,15 @@ export default class ContentExtractor implements Extractor<Content> {
   }
 
   private extractBlockquotes(
-    $: cheerio.CheerioAPI,
-    root: cheerio.Cheerio<any>,
+    $: cheerio.CheerioAPI
   ): string[] {
-    return this.getTexts($, root, "blockquote");
+    return this.getTexts($,"blockquote");
   }
 
-  private extractCodeBlocks($: cheerio.CheerioAPI, root: cheerio.Cheerio<any>): string[] {
+  private extractCodeBlocks($: cheerio.CheerioAPI): string[] {
     const blocks: string[] = [];
 
-    root.find("pre,code").each((_, code) => {
+    $("pre,code").each((_, code) => {
       const text = $(code).text().trim();
 
       if (text) {
@@ -115,12 +122,11 @@ export default class ContentExtractor implements Extractor<Content> {
 
   private getTexts(
     $: cheerio.CheerioAPI,
-    root: cheerio.Cheerio<any>,
     selector: string,
   ): string[] {
     const texts: string[] = [];
 
-    root.find(selector).each((_, element) => {
+    $(selector).each((_, element) => {
       const text = this.normalizeText($(element).text());
 
       if (text) {
