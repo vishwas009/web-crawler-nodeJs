@@ -32,4 +32,10 @@ export interface Content {
   // tables: string[][][];
   wordCount: number;
   readingTime: number;
+  excerpt: string;
+  byline: string;
+  dir: string;
+  siteName: string;
+  lang: string;
+  publishedTime: string;
 }
