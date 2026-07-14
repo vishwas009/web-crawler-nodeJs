@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 import { type Content } from "./types.js";
 import { type Extractor } from "./Extractor.js";
-import { extractReadableContent } from "./readability.js";
+import { extractReadableContent } from "./Readability.js";
 
 export default class ContentExtractor implements Extractor<Content> {
   public extract(html: string, pageUrl: string): Content {

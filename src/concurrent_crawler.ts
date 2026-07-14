@@ -11,6 +11,7 @@ import crawler_config from '../config.json' with {type: 'json'};
 import { writeJSONReport_One } from "./utils/report.js";
 import MetadataExtractor from "./extractors/MetadataExtractor.js";
 import ContentExtractor from "./extractors/ContentExtractor.js";
+import LinkExtractor from "./extractors/LinkExtractor.js";
 
 export default class ConcurrentCrawler {
   private baseUrl: string;
@@ -255,8 +256,11 @@ export default class ConcurrentCrawler {
           
           // const contentExtractor = new ContentExtractor();
           // const content = contentExtractor.extract(html, url);
+          // const linkExtractor = new LinkExtractor();
+          // const links = linkExtractor.extract(html, url);
+          
 
-          // await fs.promises.writeFile(path.resolve(output_dir, 'content.json'), JSON.stringify(content, null, 2));
+          // await fs.promises.writeFile(path.resolve(output_dir, 'content.json'), JSON.stringify(links, null, 2));
 
           break;
         } else {

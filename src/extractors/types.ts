@@ -39,3 +39,18 @@ export interface Content {
   lang: string;
   publishedTime: string;
 }
+
+export interface Link {
+  url: string;
+  text: string;
+  title?: string | null;
+  rel?: string[];
+  target?: string | null;
+  type?: string | null;
+  hreflang?: string | null;
+  referrerPolicy?: string | null;
+  download?: boolean;
+  isInternal?: boolean;
+  isNoFollow?: boolean;
+  protocol?: string | null;
+}

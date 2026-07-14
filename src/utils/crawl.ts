@@ -17,6 +17,10 @@ export function resolveUrl(url: string | null, baseUrl: string): string | null {
   }
 }
 
+export function normalizeText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
 export function getHeadingFromHTML(html: string): string {
   const dom = new JSDOM(html);
   let heading = dom.window.document.querySelector("h1");
