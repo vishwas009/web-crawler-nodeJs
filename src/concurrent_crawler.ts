@@ -9,9 +9,11 @@ import { type ExtractedPageData } from "./types.js";
 import { normalizeURL, extractPageData } from "./utils/crawl.js";
 import crawler_config from '../config.json' with {type: 'json'};
 import { writeJSONReport_One } from "./utils/report.js";
-import MetadataExtractor from "./extractors/MetadataExtractor.js";
-import ContentExtractor from "./extractors/ContentExtractor.js";
-import LinkExtractor from "./extractors/LinkExtractor.js";
+// import MetadataExtractor from "./extractors/MetadataExtractor.js";
+// import ContentExtractor from "./extractors/ContentExtractor.js";
+// import LinkExtractor from "./extractors/LinkExtractor.js";
+// import StructuredDataExtractor from "./extractors/StructuredDataExtractor.js";
+// import OpenGraphExtractor from "./extractors/OpenGraphExtractor.js";
 
 export default class ConcurrentCrawler {
   private baseUrl: string;
@@ -258,9 +260,13 @@ export default class ConcurrentCrawler {
           // const content = contentExtractor.extract(html, url);
           // const linkExtractor = new LinkExtractor();
           // const links = linkExtractor.extract(html, url);
+          // const structuredDataExtractor = new StructuredDataExtractor();
+          // const structuredData = structuredDataExtractor.extract(html, url);
+          // const openGraphExtractor = new OpenGraphExtractor();
+          // const openGraphData = openGraphExtractor.extract(html, url);
           
 
-          // await fs.promises.writeFile(path.resolve(output_dir, 'content.json'), JSON.stringify(links, null, 2));
+          // await fs.promises.writeFile(path.resolve(output_dir, 'open_graph_data.json'), JSON.stringify(openGraphData, null, 2));
 
           break;
         } else {

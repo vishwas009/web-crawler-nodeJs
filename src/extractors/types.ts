@@ -54,3 +54,22 @@ export interface Link {
   isNoFollow?: boolean;
   protocol?: string | null;
 }
+
+export interface StructuredData {
+  context: string | null;
+  type: string[];
+  raw: Record<string, unknown>;
+}
+
+export interface OpenGraphData {
+    title?: string;
+    description?: string;
+    type?: string;
+    url?: string;
+    siteName?: string;
+    locale?: string;
+    images: string[];
+    videos: string[];
+    audios: string[];
+    extras: Record<string, string>;
+}
