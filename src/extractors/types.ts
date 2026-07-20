@@ -62,14 +62,24 @@ export interface StructuredData {
 }
 
 export interface OpenGraphData {
-    title?: string;
-    description?: string;
-    type?: string;
-    url?: string;
-    siteName?: string;
-    locale?: string;
-    images: string[];
-    videos: string[];
-    audios: string[];
-    extras: Record<string, string>;
+  title?: string;
+  description?: string;
+  type?: string;
+  url?: string;
+  siteName?: string;
+  locale?: string;
+  images: string[];
+  videos: string[];
+  audios: string[];
+  extras: Record<string, string>;
+}
+
+export interface Image {
+  src: string;
+  alt: string;
+  title: string | null;
+  loading: "lazy" | "eager" | null;
+  decoding: "async" | "sync" | "auto" | null;
+  srcset: string[];
+  sizes: string | null;
 }

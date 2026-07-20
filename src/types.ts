@@ -6,3 +6,8 @@ export type ExtractedPageData = {
   image_urls: string[];
   media_urls: string[];
 };
+
+export interface ImageDownloadOptions {
+  minSizeKB?: number;
+  timeout?: number;
+}

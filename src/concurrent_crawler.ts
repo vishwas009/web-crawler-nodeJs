@@ -14,6 +14,8 @@ import { writeJSONReport_One } from "./utils/report.js";
 // import LinkExtractor from "./extractors/LinkExtractor.js";
 // import StructuredDataExtractor from "./extractors/StructuredDataExtractor.js";
 // import OpenGraphExtractor from "./extractors/OpenGraphExtractor.js";
+import ImageExtractor from "./extractors/ImageExtractor.js";
+import ImageDownloadService from "./services/image_downloader.service.js";
 
 export default class ConcurrentCrawler {
   private baseUrl: string;
@@ -28,6 +30,7 @@ export default class ConcurrentCrawler {
   private browser: Browser | null = null;
   private config: Record<string, any> = {};
   private dirPath: string;
+  private imageDownloader: ImageDownloadService;
 
   constructor(baseUrl: string, maxConcurrency: number, maxPages: number = 100) {
     this.baseUrl = baseUrl;
@@ -37,6 +40,10 @@ export default class ConcurrentCrawler {
     // this.maxConcurrency = maxConcurrency;
     this.limit = pLimit(maxConcurrency);
     this.config = crawler_config;
+    this.imageDownloader = new ImageDownloadService({ 
+      minSizeKB: this.config.SMALL_IMAGE_SIZE_KB,
+      timeout: 60000, // 60 seconds
+    });
 
     puppeteer.use(StealthPlugin());
   }
@@ -197,10 +204,11 @@ export default class ConcurrentCrawler {
           const request = response.request();
 
           if (request.resourceType() === "image" && this.config.SAVE_IMAGES === true) {
-            const task = this.saveImage(response, OUTPUT_DIR);
+            // const task = this.saveImage(response, OUTPUT_DIR);
 
-            imageTasks.add(task);
-            task.finally(() => imageTasks.delete(task));
+            // imageTasks.add(task);
+            // task.finally(() => imageTasks.delete(task));
+            this.imageDownloader.handleResponse(response, OUTPUT_DIR);
           }
         });
 
@@ -264,9 +272,10 @@ export default class ConcurrentCrawler {
           // const structuredData = structuredDataExtractor.extract(html, url);
           // const openGraphExtractor = new OpenGraphExtractor();
           // const openGraphData = openGraphExtractor.extract(html, url);
+          // const imageExtractor = new ImageExtractor();
+          // const images = imageExtractor.extract(html, url);
           
-
-          // await fs.promises.writeFile(path.resolve(output_dir, 'open_graph_data.json'), JSON.stringify(openGraphData, null, 2));
+          // await fs.promises.writeFile(path.resolve(output_dir, 'images.json'), JSON.stringify(images, null, 2));
 
           break;
         } else {
@@ -283,19 +292,22 @@ export default class ConcurrentCrawler {
         );
       } finally {
         if (page) {
-          console.log(`Waiting for all tasks to complete. Pending: ${imageTasks.size}`);
+          console.log(`Waiting for all tasks to complete.`);
 
-          const timeout = new Promise((resolve) =>
-            setTimeout(() => {
-              console.log("Timeout Rejecting rest pending tasks");
-              resolve();
-            }, this.config.ALL_TASKS_TIMEOUT),
-          );
+          // const timeout = new Promise((resolve) =>
+          //   setTimeout(() => {
+          //     console.log("Timeout Rejecting rest pending tasks");
+          //     resolve();
+          //   }, this.config.ALL_TASKS_TIMEOUT),
+          // );
 
-          await Promise.race([
-            timeout,
-            Promise.allSettled(Array.from(imageTasks)),
-          ]);
+          // await Promise.race([
+          //   timeout,
+          //   Promise.allSettled(Array.from(imageTasks)),
+          // ]);
+
+          const downloadedImages = await this.imageDownloader.finish();
+          console.log(`Downloaded ${downloadedImages.length} images`);
 
           console.log("All tasks completed");
 
