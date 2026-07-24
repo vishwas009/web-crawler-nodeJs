@@ -1,7 +1,8 @@
 import path from "node:path";
 import fs from "node:fs";
 import { HTTPResponse } from "puppeteer";
-import {type ImageDownloadOptions} from "../types.js";
+import {type ImageDownloadOptions, StorageContext} from "../types.js";
+import { type StorageService } from "./storage/StorageService.js";
 
 export default class ImageDownloadService {
   private tasks = new Set<Promise<string | null>>();
@@ -9,18 +10,20 @@ export default class ImageDownloadService {
 
   private readonly minSizeBytes: number;
   private readonly timeout: number;
+  private storage: StorageService;
 
-  constructor(options: ImageDownloadOptions) {
+  constructor(options: ImageDownloadOptions, storage: StorageService) {
     this.minSizeBytes = (options?.minSizeKB ?? 2) * 1024;
     this.timeout = options?.timeout ?? 10000;
+    this.storage = storage;
   }
 
-  handleResponse(response: HTTPResponse, dir_path: string): void {
+  handleResponse(response: HTTPResponse, context: StorageContext): void {
     if (!this.isImage(response) || this.downloaded.has(response.url())) {
       return;
     }
 
-    const task = this.download(response, dir_path);
+    const task = this.download(response, context);
     this.tasks.add(task);
 
     task.finally(() => {
@@ -32,8 +35,8 @@ export default class ImageDownloadService {
     const downloads = Promise.allSettled(this.tasks);
 
     // To handle the new incoming tasks while waiting for the existing ones to finish,
-    // we can use a loop to keep checking if there are any remaining tasks. 
-    // However, this can lead to an infinite loop if new tasks keep coming in. 
+    // we can use a loop to keep checking if there are any remaining tasks.
+    // However, this can lead to an infinite loop if new tasks keep coming in.
     // Instead, we can use a timeout mechanism to ensure that we don't wait indefinitely.
     //
     // while (this.tasks.size > 0) {
@@ -61,7 +64,7 @@ export default class ImageDownloadService {
     return response.request().resourceType() === "image";
   }
 
-  private async download(response: HTTPResponse, dir_path: string): Promise<string | null> {
+  private async download(response: HTTPResponse, context: StorageContext): Promise<string | null> {
     try {
       const headers = response.headers();
       const contentType = headers["content-type"] ?? "";
@@ -77,7 +80,18 @@ export default class ImageDownloadService {
         return null;
       }
 
-      await this.saveToDisk(dir_path, response.url(), contentType, buffer);
+      const url = response.url();
+      const parsedUrl = new URL(url);
+      let fileName = path.basename(parsedUrl.pathname);
+
+      const res = await this.storage.save(
+        {
+          data: buffer,
+          mimeType: contentType,
+          suggestedName: fileName.split(".")[0],
+        },
+        context,
+      );
       this.downloaded.add(response.url());
 
       return response.url();
@@ -85,27 +99,5 @@ export default class ImageDownloadService {
       console.error("Failed downloading image:", response.url());
       return null;
     }
-  }
-
-  private async saveToDisk(
-    dir_path: string,
-    url: string,
-    contentType: string = "image/jpeg",
-    buffer: Buffer,
-  ): Promise<void> {
-    const parsedUrl = new URL(url);
-    let fileName = path.basename(parsedUrl.pathname);
-
-    // Fallback name if the pathname doesn't have an explicit file extension
-    if (!fileName || !fileName.includes(".")) {
-      const ext = contentType.split("/")[1] || "jpg";
-      fileName = `captured_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
-    } else {
-      fileName = `${Math.trunc(Math.random() * 10000000)}_${fileName}`;
-    }
-
-    const filePath = path.join(dir_path, fileName);
-    await fs.promises.writeFile(filePath, buffer);
-    console.log(`Saved image: ${fileName}`);
   }
 }

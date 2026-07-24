@@ -11,3 +11,19 @@ export interface ImageDownloadOptions {
   minSizeKB?: number;
   timeout?: number;
 }
+
+export interface StorageContext {
+  prefix: string;
+  bucket_name?: string;
+}
+
+export interface StorableResource {
+  data: Buffer;
+  mimeType: string;
+  suggestedName?: string;
+}
+
+export interface StoredResource {
+  path: string;
+  size: number;
+}
