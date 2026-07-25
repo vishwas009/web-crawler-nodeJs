@@ -1,9 +1,9 @@
 import * as cheerio from "cheerio";
-import { type OpenGraphData } from "./types.js";
-import { type Extractor } from "./Extractor.js";
-import { resolveUrl } from "../utils/crawl.js";
+import { type OpenGraphData } from "../types.js";
+import { type HtmlExtractor } from "./HtmlExtractor.js";
+import { resolveUrl } from "../../utils/crawl.js";
 
-export default class OpenGraphExtractor implements Extractor<OpenGraphData> {
+export default class OpenGraphExtractor implements HtmlExtractor<OpenGraphData> {
     public extract(html: string, pageUrl: string): OpenGraphData {
         const $ = cheerio.load(html);
         return this.extractOpenGraphData($, pageUrl);

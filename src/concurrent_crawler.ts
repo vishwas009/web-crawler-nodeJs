@@ -15,6 +15,7 @@ import { writeJSONReport_One } from "./utils/report.js";
 // import StructuredDataExtractor from "./extractors/StructuredDataExtractor.js";
 // import OpenGraphExtractor from "./extractors/OpenGraphExtractor.js";
 // import ImageExtractor from "./extractors/ImageExtractor.js";
+import PerformanceExtractor from "./extractors/RuntimeExtractors/PerformanceExtractor.js";
 import ImageDownloadService from "./services/ImageDownloaderService.js";
 import DiskStorage from "./services/storage/DiskStorage.js";
 
@@ -241,9 +242,11 @@ export default class ConcurrentCrawler {
           // const openGraphData = openGraphExtractor.extract(html, url);
           // const imageExtractor = new ImageExtractor();
           // const images = imageExtractor.extract(html, url);
+          // const performanceExtractor = new PerformanceExtractor();
+          // const performanceData = await performanceExtractor.extract(page, url);
           
-          // await fs.promises.writeFile(path.resolve(output_dir, 'images.json'), JSON.stringify(images, null, 2));
-
+          // await fs.promises.writeFile(path.resolve(output_dir, 'performance.json'), JSON.stringify(performanceData, null, 2));
+          await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
           break;
         } else {
           throw new Error("No HTML");

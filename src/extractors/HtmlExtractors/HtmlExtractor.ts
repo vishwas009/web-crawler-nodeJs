@@ -1,4 +1,4 @@
-export interface Extractor<T> {
+export interface HtmlExtractor<T> {
   extract(
     html: string,
     pageUrl: string
