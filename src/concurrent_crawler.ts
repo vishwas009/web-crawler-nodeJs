@@ -5,9 +5,19 @@ import pLimit from "p-limit";
 import { TimeoutError, type Browser, type Page, type HTTPResponse} from 'puppeteer'
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { normalizeURL, extractPageData, type ExtractedPageData } from "./crawl.js";
+import { type ExtractedPageData } from "./types.js";
+import { normalizeURL, extractPageData } from "./utils/crawl.js";
 import crawler_config from '../config.json' with {type: 'json'};
-import { writeJSONReport_One } from "./report.js";
+import { writeJSONReport_One } from "./utils/report.js";
+// import MetadataExtractor from "./extractors/MetadataExtractor.js";
+// import ContentExtractor from "./extractors/ContentExtractor.js";
+// import LinkExtractor from "./extractors/LinkExtractor.js";
+// import StructuredDataExtractor from "./extractors/StructuredDataExtractor.js";
+// import OpenGraphExtractor from "./extractors/OpenGraphExtractor.js";
+// import ImageExtractor from "./extractors/ImageExtractor.js";
+import PerformanceExtractor from "./extractors/RuntimeExtractors/PerformanceExtractor.js";
+import ImageDownloadService from "./services/ImageDownloaderService.js";
+import DiskStorage from "./services/storage/DiskStorage.js";
 
 export default class ConcurrentCrawler {
   private baseUrl: string;
@@ -22,6 +32,8 @@ export default class ConcurrentCrawler {
   private browser: Browser | null = null;
   private config: Record<string, any> = {};
   private dirPath: string;
+  private imageDownloader: ImageDownloadService;
+  private diskStorage: DiskStorage;
 
   constructor(baseUrl: string, maxConcurrency: number, maxPages: number = 100) {
     this.baseUrl = baseUrl;
@@ -31,6 +43,12 @@ export default class ConcurrentCrawler {
     // this.maxConcurrency = maxConcurrency;
     this.limit = pLimit(maxConcurrency);
     this.config = crawler_config;
+    this.diskStorage = new DiskStorage();
+
+    this.imageDownloader = new ImageDownloadService({ 
+      minSizeKB: this.config.SMALL_IMAGE_SIZE_KB,
+      timeout: 60000, // 60 seconds
+    }, this.diskStorage);
 
     puppeteer.use(StealthPlugin());
   }
@@ -52,38 +70,6 @@ export default class ConcurrentCrawler {
 
     this.visitedURLs.add(normalizedURL);
     return true;
-  }
-
-  private async saveImage(
-    response: HTTPResponse,
-    dir_path: string,
-  ): Promise<void> {
-    try {
-      const buffer = await response.buffer();
-      if (this.config.IGNORE_SMALL_IMAGES === true && buffer.length <= this.config.SMALL_IMAGE_SIZE) {
-        return;
-      }
-
-      const url = response.url();
-      const parsedUrl = new URL(url);
-      let fileName = path.basename(parsedUrl.pathname);
-
-      // Fallback name if the pathname doesn't have an explicit file extension
-      if (!fileName || !fileName.includes(".")) {
-        const contentType = response.headers()["content-type"] || "";
-        const ext = contentType.split("/")[1] || "jpg";
-        fileName = `captured_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
-      } else {
-        fileName = `${Math.trunc(Math.random() * 10000000)}_${fileName}`;
-      }
-
-      const filePath = path.join(dir_path, fileName);
-      await fs.promises.writeFile(filePath, buffer);
-
-      console.log(`Saved ${fileName}`);
-    } catch (err) {
-      console.log(err instanceof Error ? err.message : err);
-    }
   }
 
   private async scrollPage(page: Page, times: number): Promise<unknown> {
@@ -168,7 +154,6 @@ export default class ConcurrentCrawler {
     ]);
     const OUTPUT_DIR = path.resolve(output_dir, "images");
     await fs.promises.mkdir(OUTPUT_DIR, {recursive: true});
-    const imageTasks = new Set<Promise<void>>();
 
     console.log(`Crawling: ${url}`);
 
@@ -191,10 +176,7 @@ export default class ConcurrentCrawler {
           const request = response.request();
 
           if (request.resourceType() === "image" && this.config.SAVE_IMAGES === true) {
-            const task = this.saveImage(response, OUTPUT_DIR);
-
-            imageTasks.add(task);
-            task.finally(() => imageTasks.delete(task));
+            this.imageDownloader.handleResponse(response, {prefix: OUTPUT_DIR});
           }
         });
 
@@ -245,6 +227,26 @@ export default class ConcurrentCrawler {
         html = await page.content();
 
         if (html) {
+          // Extractors test code //
+
+          // const metaExtractor = new MetadataExtractor();
+          // console.log(metaExtractor.extract(html, url));
+          
+          // const contentExtractor = new ContentExtractor();
+          // const content = contentExtractor.extract(html, url);
+          // const linkExtractor = new LinkExtractor();
+          // const links = linkExtractor.extract(html, url);
+          // const structuredDataExtractor = new StructuredDataExtractor();
+          // const structuredData = structuredDataExtractor.extract(html, url);
+          // const openGraphExtractor = new OpenGraphExtractor();
+          // const openGraphData = openGraphExtractor.extract(html, url);
+          // const imageExtractor = new ImageExtractor();
+          // const images = imageExtractor.extract(html, url);
+          // const performanceExtractor = new PerformanceExtractor();
+          // const performanceData = await performanceExtractor.extract(page, url);
+          
+          // await fs.promises.writeFile(path.resolve(output_dir, 'performance.json'), JSON.stringify(performanceData, null, 2));
+          await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
           break;
         } else {
           throw new Error("No HTML");
@@ -260,19 +262,22 @@ export default class ConcurrentCrawler {
         );
       } finally {
         if (page) {
-          console.log(`Waiting for all tasks to complete. Pending: ${imageTasks.size}`);
+          console.log(`Waiting for all tasks to complete.`);
 
-          const timeout = new Promise((resolve) =>
-            setTimeout(() => {
-              console.log("Timeout Rejecting rest pending tasks");
-              resolve();
-            }, this.config.ALL_TASKS_TIMEOUT),
-          );
+          // const timeout = new Promise((resolve) =>
+          //   setTimeout(() => {
+          //     console.log("Timeout Rejecting rest pending tasks");
+          //     resolve();
+          //   }, this.config.ALL_TASKS_TIMEOUT),
+          // );
 
-          await Promise.race([
-            timeout,
-            Promise.allSettled(Array.from(imageTasks)),
-          ]);
+          // await Promise.race([
+          //   timeout,
+          //   Promise.allSettled(Array.from(imageTasks)),
+          // ]);
+
+          const downloadedImages = await this.imageDownloader.finish();
+          console.log(`Downloaded ${downloadedImages.length} images`);
 
           console.log("All tasks completed");
 
@@ -335,12 +340,14 @@ export default class ConcurrentCrawler {
       this.browser = await puppeteer.launch({
         headless: this.config.HEADLESS,
         // userDataDir: './profile'
+        defaultViewport: null,
         args: [
           "--no-sandbox",
           "--disable-setuid-sandbox",
           "--disable-dev-shm-usage", // Prevents issues with small /dev/shm memory limits
           "--disable-accelerated-2d-canvas",
           "--disable-gpu",
+          "--window-size=1920,1080"
         ],
       });
 

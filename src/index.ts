@@ -1,5 +1,5 @@
 import { argv } from "node:process";
-import { type ExtractedPageData } from "./crawl.js";
+import { type ExtractedPageData } from "./types.js";
 import ConcurrentCrawler from "./concurrent_crawler.js";
 import crawler_config from '../config.json' with {type: 'json'};
 
