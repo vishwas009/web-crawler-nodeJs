@@ -43,7 +43,7 @@ export default class ImageDownloadService {
     //     await Promise.allSettled([...this.tasks]);
     // }
 
-    const timer = new Promise<never>((_, reject) => {
+    const timer = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new Error("Image download timeout"));
       }, this.timeout);
@@ -92,6 +92,7 @@ export default class ImageDownloadService {
         },
         context,
       );
+
       this.downloaded.add(response.url());
 
       return response.url();

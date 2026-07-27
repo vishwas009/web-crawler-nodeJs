@@ -27,3 +27,10 @@ export interface StoredResource {
   path: string;
   size: number;
 }
+
+export interface PageData {
+  extracted_data: any;
+  crawlable_urls: string[];
+  page_url: string;
+  html: string;
+}

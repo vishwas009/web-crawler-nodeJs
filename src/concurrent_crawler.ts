@@ -5,13 +5,13 @@ import pLimit from "p-limit";
 import { TimeoutError, type Browser, type Page, type HTTPResponse} from 'puppeteer'
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { type ExtractedPageData } from "./types.js";
+import type { ExtractedPageData, PageData } from "./types.js";
 import { normalizeURL, extractPageData } from "./utils/crawl.js";
 import crawler_config from '../config.json' with {type: 'json'};
 import { writeJSONReport_One } from "./utils/report.js";
 // import MetadataExtractor from "./extractors/MetadataExtractor.js";
 // import ContentExtractor from "./extractors/ContentExtractor.js";
-// import LinkExtractor from "./extractors/LinkExtractor.js";
+import LinkExtractor from "./extractors/HtmlExtractors/LinkExtractor.js";
 // import StructuredDataExtractor from "./extractors/StructuredDataExtractor.js";
 // import OpenGraphExtractor from "./extractors/OpenGraphExtractor.js";
 // import ImageExtractor from "./extractors/ImageExtractor.js";
@@ -27,7 +27,6 @@ export default class ConcurrentCrawler {
   private shouldStop: boolean = false;
   private limit: ReturnType<typeof pLimit>;
   private pages: Record<string, ExtractedPageData> = {};
-  private allTasks: Set<Promise<void>> = new Set();
   private visitedURLs: Set<string> = new Set();
   private browser: Browser | null = null;
   private config: Record<string, any> = {};
@@ -60,7 +59,6 @@ export default class ConcurrentCrawler {
 
     if (this.visitedURLs.size >= this.maxPages) {
       this.shouldStop = true;
-      // console.log(`Reached max page limit of ${this.maxPages}. Stopping crawl.`,);
       return false;
     }
 
@@ -144,8 +142,9 @@ export default class ConcurrentCrawler {
     });
   }
 
-  private async scrape(url: string, output_dir: string, retries: number = 2): Promise<string> {
+  private async scrape(url: string, output_dir: string, retries: number = 2): Promise<PageData> {
     let html = "";
+    let nextUrls: string[] = [];
     const blockedTypes = new Set([
       /*"image",*/
       "media",
@@ -155,7 +154,7 @@ export default class ConcurrentCrawler {
     const OUTPUT_DIR = path.resolve(output_dir, "images");
     await fs.promises.mkdir(OUTPUT_DIR, {recursive: true});
 
-    console.log(`Crawling: ${url}`);
+    console.log('\x1b[32mCRAWLING: \x1b[0m', url);
 
     for (let i = 0; i <= retries; i++) {
       let page: Page | null = null;
@@ -182,7 +181,7 @@ export default class ConcurrentCrawler {
 
         page.on("requestfailed", (request: any) => {
           if (request.resourceType() === "document") {
-            console.log("FAILED:", request.url(), request.failure()?.errorText);
+            console.log('\x1b[33mFAILED: \x1b[0m', request.url(), request.failure()?.errorText);
           }
         });
 
@@ -197,28 +196,28 @@ export default class ConcurrentCrawler {
           }
         } catch (err) {
           if (err instanceof Error && (err instanceof TimeoutError || err.name === "TimeoutError")) {
-            console.log("Navigation timeout, continuing.");
+            console.log('\x1b[33mTIMEOUT: \x1b[0m', 'NAVIGATION');
             await page.evaluate(() => window.stop());
           } else {
             throw err;
           }
         }
 
-        if(this.config.HEADLESS === false) {
-          console.log("Waiting for user input");
-          page.evaluate(() => {
-            alert('Page Launched in Headfull mode, press a key in terminal when done to continue crawling.');
-          });
-          const key = await this.waitForKeyPress();
-          console.log("Continuing Crawling");
-        }
+        // if(this.config.HEADLESS === false) {
+        //   console.log("Waiting for user input");
+        //   page.evaluate(() => {
+        //     alert('Page Launched in Headfull mode, press a key in terminal when done to continue crawling.');
+        //   });
+        //   const key = await this.waitForKeyPress();
+        //   console.log("Continuing Crawling");
+        // }
 
 
         try {
           await page.waitForNetworkIdle({ idleTime: 1000, timeout: this.config.DEFAULT_TIMEOUT });
         } catch (error) {
           if (error instanceof Error && (error instanceof TimeoutError || error.name === "TimeoutError")) {
-            console.log("waitForNetworkIdle timeout, continuing.");
+            console.log('\x1b[33mTIMEOUT: \x1b[0m', 'waitForNetworkIdle');
           } else {
             throw error;
           }
@@ -234,8 +233,8 @@ export default class ConcurrentCrawler {
           
           // const contentExtractor = new ContentExtractor();
           // const content = contentExtractor.extract(html, url);
-          // const linkExtractor = new LinkExtractor();
-          // const links = linkExtractor.extract(html, url);
+          const linkExtractor = new LinkExtractor();
+          nextUrls = linkExtractor.getCrawlableLinks(html, url);
           // const structuredDataExtractor = new StructuredDataExtractor();
           // const structuredData = structuredDataExtractor.extract(html, url);
           // const openGraphExtractor = new OpenGraphExtractor();
@@ -246,23 +245,23 @@ export default class ConcurrentCrawler {
           // const performanceData = await performanceExtractor.extract(page, url);
           
           // await fs.promises.writeFile(path.resolve(output_dir, 'performance.json'), JSON.stringify(performanceData, null, 2));
-          await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
+          // await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
           break;
         } else {
           throw new Error("No HTML");
         }
       } catch (error) {
-        console.log("Final Catch block");
+        console.log('\x1b[33mFinal Catch block \x1b[0m');
         if (i < retries) {
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
 
-        console.log(
-          `Attempt ${i + 1}/${retries + 1} failed for ${url}\n Error: ${error instanceof Error ? error.message : error}`,
+        console.log('\x1b[31mERROR: \x1b[0m',
+          `ATTEMPT ${i + 1}/${retries + 1}: Failed for ${url}\n Error: ${error instanceof Error ? error.message : error}`,
         );
       } finally {
         if (page) {
-          console.log(`Waiting for all tasks to complete.`);
+          console.log('\x1b[32mINFO: \x1b[0m', 'Waiting for all tasks to complete');
 
           // const timeout = new Promise((resolve) =>
           //   setTimeout(() => {
@@ -277,9 +276,9 @@ export default class ConcurrentCrawler {
           // ]);
 
           const downloadedImages = await this.imageDownloader.finish();
-          console.log(`Downloaded ${downloadedImages.length} images`);
+          console.log('\x1b[32mINFO: \x1b[0m', `Downloaded ${downloadedImages.length} images`);
 
-          console.log("All tasks completed");
+          console.log('\x1b[32mINFO: \x1b[0m', 'All tasks completed.');
 
           await page.close();
           page = null;
@@ -287,55 +286,61 @@ export default class ConcurrentCrawler {
       }
     }
 
-    return html;
+    return {html, crawlable_urls: nextUrls, page_url: url, extracted_data: null};
   }
 
-  private async crawlPage(baseURL: string, currentURL: string = baseURL): Promise<void> {
-    if (this.shouldStop) {
-      return;
-    }
+  private async crawlPage(baseURL: string): Promise<void> {
+    let currentUrls: Set<string> = new Set();
+    currentUrls.add(baseURL);
 
-    const urlObj = new URL(currentURL);
-    if (urlObj.hostname !== this.baseHost) {
-      return;
-    }
+    while (currentUrls.size > 0) {
+      let promises: Promise<PageData>[] = [];
 
-    const normalizedURL = normalizeURL(currentURL);
-    if (!this.addPageVisit(normalizedURL)) {
-      return;
-    }
-
-    console.log(`Url added to queue: ${currentURL}`);
-
-    const output_dir = path.resolve(this.dirPath, urlObj.pathname.replaceAll('/', '_'));
-    const html = await this.limit(async () => {
-      await fs.promises.mkdir(output_dir, {recursive: true});
-      return this.scrape(currentURL, output_dir);
-    });
-
-    if (html) {
-      const pageData = extractPageData(html, currentURL);
-      writeJSONReport_One(pageData, output_dir);
-      this.pages[normalizedURL] = pageData;
-      const urls = pageData.outgoing_links;
-      const crawlPromises: Promise<void>[] = [];
-
-      for (const url of urls) {
+      for (const url of currentUrls) {
         if (this.shouldStop) break;
 
-        const task = this.crawlPage(baseURL, url);
-        this.allTasks.add(task);
-        task.finally(() => this.allTasks.delete(task));
-        crawlPromises.push(task);
+        const normalizedURL = normalizeURL(url);
+        if (!this.addPageVisit(normalizedURL)) {
+          continue;
+        }
+
+        console.log('\x1b[32mURL ADDED TO QUEUE: \x1b[0m', url);
+
+        const urlObj = new URL(url);
+        const output_dir = path.resolve(this.dirPath, urlObj.pathname.replaceAll("/", "_"));
+
+        promises.push(
+          this.limit(async () => {
+            await fs.promises.mkdir(output_dir, { recursive: true });
+
+            return this.scrape(url, output_dir);
+          }),
+        );
       }
 
-      await Promise.all(crawlPromises);
+      const res = await Promise.all(promises);
+      currentUrls.clear();
+
+      res.forEach(({ html, crawlable_urls, page_url }) => {
+        const pageData = extractPageData(html, page_url);
+        const urlObj = new URL(page_url);
+        writeJSONReport_One(
+          pageData,
+          path.resolve(this.dirPath, urlObj.pathname.replaceAll("/", "_")),
+        );
+
+        if (!this.shouldStop) {
+          crawlable_urls.forEach((url) => {
+            if (!this.visitedURLs.has(normalizeURL(url))) {
+              currentUrls.add(url);
+            }
+          });
+        }
+      });
     }
   }
 
   async crawl(): Promise<Record<string, ExtractedPageData>> {
-    let rootTask: Promise<void> | undefined;
-
     try {
       this.browser = await puppeteer.launch({
         headless: this.config.HEADLESS,
@@ -352,18 +357,10 @@ export default class ConcurrentCrawler {
       });
 
       await fs.promises.mkdir(this.dirPath, { recursive: true });
-      rootTask = this.crawlPage(this.baseUrl);
-      this.allTasks.add(rootTask);
-
-      await rootTask;
-      await Promise.allSettled(Array.from(this.allTasks));
+      await this.crawlPage(this.baseUrl);
     } catch (error) {
-      console.error("Error occurred while crawling the site:", error);
+      console.log('\x1b[31mERROR: \x1b[0m', error);
     } finally {
-      if (rootTask) {
-        this.allTasks.delete(rootTask);
-      }
-
       if (this.browser) {
         await this.browser.close();
       }
