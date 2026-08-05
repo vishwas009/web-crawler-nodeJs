@@ -1,10 +1,9 @@
+import type { HtmlExtractorResult } from "./extractors/HtmlExtractors/types.js";
+import type { RuntimeExtractorResult } from "./extractors/RuntimeExtractors/types.js";
+
 export type ExtractedPageData = {
-  url: string;
-  heading: string;
-  first_paragraph: string;
-  outgoing_links: string[];
-  image_urls: string[];
-  media_urls: string[];
+  pageHtmlData: HtmlExtractorResult | {};
+  pageRuntimeData: RuntimeExtractorResult | {};
 };
 
 export interface ImageDownloadOptions {
@@ -18,8 +17,8 @@ export interface StorageContext {
 }
 
 export interface StorableResource {
-  data: Buffer;
-  mimeType: string;
+  data: Buffer | string;
+  fileExtension: string;
   suggestedName?: string;
 }
 
@@ -28,9 +27,18 @@ export interface StoredResource {
   size: number;
 }
 
-export interface PageData {
-  extracted_data: any;
+export interface PageCrawlResult {
+  extracted_data: ExtractedPageData;
   crawlable_urls: string[];
   page_url: string;
-  html: string;
+  success: boolean;
+  crawl_time: number;
+}
+
+export interface CrawlSummary {
+  pages_crawled: number;
+  success: number;
+  failed: number;
+  average_page_time: number;
+  total_duration: number;
 }

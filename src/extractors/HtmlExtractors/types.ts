@@ -1,3 +1,10 @@
+export interface HtmlExtractorInterface<T> {
+  extract(
+    html: string,
+    pageUrl: string
+  ): T;
+}
+
 export interface Metadata {
   url: string;
   title: string;
@@ -84,40 +91,13 @@ export interface Image {
   sizes: string | null;
 }
 
-export interface NavigationTiming {
-  dnsLookup: number;
-  tcpConnection: number;
-  tlsHandshake: number;
-  request: number;
-  response: number;
-  domInteractive: number;
-  domContentLoaded: number;
-  loadComplete: number;
-  totalPageLoad: number;
-}
-
-export interface PaintTiming {
-  firstPaint?: number;
-  firstContentfulPaint?: number;
-}
-
-export interface BrowserMetrics {
-  documents: number | undefined;
-  frames: number | undefined;
-  nodes: number | undefined;
-  jsEventListeners: number | undefined;
-  layoutCount: number | undefined;
-  recalcStyleCount: number | undefined;
-  layoutDuration: number | undefined;
-  recalcStyleDuration: number | undefined;
-  scriptDuration: number | undefined;
-  taskDuration: number | undefined;
-  jsHeapUsedSize: number | undefined;
-  jsHeapTotalSize: number | undefined;
-}
-
-export interface PerformanceData {
-  navigation: NavigationTiming;
-  paint: PaintTiming;
-  browser: BrowserMetrics;
+export interface HtmlExtractorResult {
+  page_url: string;
+  metadata: Metadata;
+  content: Content;
+  links: Link[];
+  crawlable_links: string[];
+  structured_data: StructuredData[];
+  open_graph_data: OpenGraphData;
+  images: Image[];
 }

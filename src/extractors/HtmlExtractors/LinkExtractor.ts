@@ -1,9 +1,9 @@
 import * as cheerio from "cheerio";
-import { type Link } from "../types.js";
-import { type HtmlExtractor } from "./HtmlExtractor.js";
-import { normalizeText } from "../../utils/crawl.js";
+import { type Link } from "./types.js";
+import { type HtmlExtractorInterface } from "./types.js";
+import { normalizeText } from "../../utils/crawl_utils.js";
 
-export default class LinkExtractor implements HtmlExtractor<Link[]> {
+export default class LinkExtractor implements HtmlExtractorInterface<Link[]> {
   public extract(html: string, pageUrl: string): Link[] {
     const $ = cheerio.load(html);
 

@@ -1,8 +1,8 @@
 import * as cheerio from "cheerio";
-import { type StructuredData} from "../types.js";
-import { type HtmlExtractor } from "./HtmlExtractor.js";
+import { type StructuredData} from "./types.js";
+import { type HtmlExtractorInterface } from "./types.js";
 
-export default class StructuredDataExtractor implements HtmlExtractor<StructuredData[]> {
+export default class StructuredDataExtractor implements HtmlExtractorInterface<StructuredData[]> {
     public extract(html: string, pageUrl: string): StructuredData[] {
         const $ = cheerio.load(html);
 

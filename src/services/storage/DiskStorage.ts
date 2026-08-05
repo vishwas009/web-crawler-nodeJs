@@ -7,10 +7,19 @@ import crypto from 'crypto'
 export default class DiskStorage extends StorageService {
   async save(item: StorableResource, context: StorageContext): Promise<StoredResource> {
     try {
-      const ext = item.mimeType.split("/")[1] || "";
-      const fileName = crypto.randomUUID() + '_' + (item.suggestedName || '') + "." + ext;
-      const filePath = path.join(context.prefix, fileName);
+      let fileName = '';
+      if(item.suggestedName) {
+        fileName = item.suggestedName + "." + (item.fileExtension || '');
 
+        if(fs.existsSync(path.join(context.prefix, fileName))) {
+          fileName = crypto.randomUUID() + '_' + item.suggestedName + "." + (item.fileExtension || '');
+        }
+      } else {
+        fileName = crypto.randomUUID() + '_' + "." + (item.fileExtension || '');
+      }
+
+      const filePath = path.join(context.prefix, fileName);
+      
       await fs.promises.writeFile(filePath, item.data);
 
       return { path: filePath, size: item.data.length };

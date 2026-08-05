@@ -1,10 +1,10 @@
 import * as cheerio from "cheerio";
 import { type Element } from "domhandler";
-import { type Image } from "../types.js";
-import { type HtmlExtractor } from "./HtmlExtractor.js";
-import { resolveUrl } from "../../utils/crawl.js";
+import { type Image } from "./types.js";
+import { type HtmlExtractorInterface } from "./types.js";
+import { resolveUrl } from "../../utils/crawl_utils.js";
 
-export default class ImageExtractor implements HtmlExtractor<Image[]>  {
+export default class ImageExtractor implements HtmlExtractorInterface<Image[]>  {
     extract(html: string, pageUrl: string): Image[] {
         const $ = cheerio.load(html);
         const images: Image[] = [];
