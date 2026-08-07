@@ -2,9 +2,9 @@ import { HtmlExtractorInterface, HtmlExtractorResult } from "./types.js";
 import MetadataExtractor from "./MetadataExtractor.js";
 import ContentExtractor from "./ContentExtractor.js";
 import StructuredDataExtractor from "./StructuredDataExtractor.js";
-import ImageExtractor from "./ImageExtractor.js";
 import OpenGraphExtractor from "./OpenGraphExtractor.js";
 import LinkExtractor from "./LinkExtractor.js";
+import MediaExtractor from "./MediaExtractor.js";
 
 export default class HtmlExtractor implements HtmlExtractorInterface<HtmlExtractorResult> {
   private metadataExtractor: MetadataExtractor;
@@ -12,7 +12,7 @@ export default class HtmlExtractor implements HtmlExtractorInterface<HtmlExtract
   private linksExtractor: LinkExtractor; 
   private structuredDataExtractor: StructuredDataExtractor; 
   private openGraphExtractor: OpenGraphExtractor; 
-  private imagesExtractor: ImageExtractor; 
+  private mediaExtractor: MediaExtractor; 
 
   constructor() {
     this.metadataExtractor = new MetadataExtractor();
@@ -20,7 +20,7 @@ export default class HtmlExtractor implements HtmlExtractorInterface<HtmlExtract
     this.linksExtractor = new LinkExtractor();
     this.structuredDataExtractor = new StructuredDataExtractor();
     this.openGraphExtractor = new OpenGraphExtractor();
-    this.imagesExtractor = new ImageExtractor();
+    this.mediaExtractor = new MediaExtractor();
   }
 
   public extract(html: string, pageUrl: string): HtmlExtractorResult {
@@ -32,7 +32,7 @@ export default class HtmlExtractor implements HtmlExtractorInterface<HtmlExtract
       crawlable_links: this.linksExtractor.getCrawlableLinks(html, pageUrl),
       structured_data: this.structuredDataExtractor.extract(html, pageUrl),
       open_graph_data: this.openGraphExtractor.extract(html, pageUrl),
-      images: this.imagesExtractor.extract(html, pageUrl)
+      media: this.mediaExtractor.extract(html, pageUrl),
     };
   }
 }
