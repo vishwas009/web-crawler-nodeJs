@@ -81,14 +81,41 @@ export interface OpenGraphData {
   extras: Record<string, string>;
 }
 
-export interface Image {
+export type MediaType =
+  | "image"
+  | "video"
+  | "audio";
+
+export interface Media_Source {
   src: string;
-  alt: string;
-  title: string | null;
-  loading: "lazy" | "eager" | null;
-  decoding: "async" | "sync" | "auto" | null;
-  srcset: string[];
-  sizes: string | null;
+  type?: string; 
+  media?: string; 
+}
+
+export interface Media {
+  mediaType: MediaType;
+  src: string | null;
+  sources: Media_Source[];
+  alt?: string;
+  title?: string;
+  srcset?: string[];
+
+  width?: number;
+  height?: number;
+  sizes?: string | null;
+
+  loading?: string;
+  decoding?: string;
+
+  autoplay?: boolean;
+  controls?: boolean;
+  loop?: boolean;
+  muted?: boolean;
+  playsInline?: boolean;
+  preload?: string;
+
+  poster?: string;
+  crossorigin?: string;
 }
 
 export interface HtmlExtractorResult {
@@ -99,5 +126,5 @@ export interface HtmlExtractorResult {
   crawlable_links: string[];
   structured_data: StructuredData[];
   open_graph_data: OpenGraphData;
-  images: Image[];
+  media?: Media[];
 }
