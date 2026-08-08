@@ -1,8 +1,8 @@
 import type { Page } from "puppeteer";
-import type { RuntimeExtractor } from "./RuntimeExtractor.js";
-import type { PerformanceData, BrowserMetrics, NavigationTiming, PaintTiming } from "../types.js";
+import type { RuntimeExtractorInterface } from "./types.js";
+import type { PerformanceData, BrowserMetrics, NavigationTiming, PaintTiming } from "./types.js";
 
-export default class PerformanceExtractor implements RuntimeExtractor<PerformanceData> {
+export default class PerformanceExtractor implements RuntimeExtractorInterface<PerformanceData> {
   async extract(page: Page, pageUrl: string): Promise<PerformanceData> {
     const [navigation, paint, browser] = await Promise.all([
       this.extractNavigationTiming(page),

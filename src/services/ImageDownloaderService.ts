@@ -1,5 +1,4 @@
 import path from "node:path";
-import fs from "node:fs";
 import { HTTPResponse } from "puppeteer";
 import {type ImageDownloadOptions, StorageContext} from "../types.js";
 import { type StorageService } from "./storage/StorageService.js";
@@ -43,7 +42,7 @@ export default class ImageDownloadService {
     //     await Promise.allSettled([...this.tasks]);
     // }
 
-    const timer = new Promise<never>((_, reject) => {
+    const timer = new Promise<void>((_, reject) => {
       setTimeout(() => {
         reject(new Error("Image download timeout"));
       }, this.timeout);
@@ -52,9 +51,7 @@ export default class ImageDownloadService {
     try {
       await Promise.race([downloads, timer]);
     } catch (error) {
-      console.error(
-        "Image download timeout reached. Some images may not have been downloaded.",
-      );
+      console.log('\x1b[33mTIMEOUT: \x1b[0m', "Image download timeout reached. Some images may not have been downloaded.");
     } finally {
       return Array.from(this.downloaded);
     }
@@ -87,16 +84,17 @@ export default class ImageDownloadService {
       const res = await this.storage.save(
         {
           data: buffer,
-          mimeType: contentType,
+          fileExtension: contentType.split("/")[1] || "",
           suggestedName: fileName.split(".")[0],
         },
         context,
       );
+
       this.downloaded.add(response.url());
 
       return response.url();
     } catch (error) {
-      console.error("Failed downloading image:", response.url());
+      console.log('\x1b[33mFAILED DOWNLOADING IMAGE: \x1b[0m', response.url());
       return null;
     }
   }

@@ -1,9 +1,9 @@
 import * as cheerio from "cheerio";
-import { type Metadata } from "../types.js";
-import { type HtmlExtractor } from "./HtmlExtractor.js";
-import { resolveUrl } from "../../utils/crawl.js";
+import { type Metadata } from "./types.js";
+import { type HtmlExtractorInterface } from "./types.js";
+import { resolveUrl } from "../../utils/crawl_utils.js";
 
-export default class MetadataExtractor implements HtmlExtractor<Metadata> {
+export default class MetadataExtractor implements HtmlExtractorInterface<Metadata> {
   public extract(html: string, pageUrl: string): Metadata {
     const $ = cheerio.load(html);
 

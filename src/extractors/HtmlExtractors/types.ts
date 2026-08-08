@@ -1,3 +1,10 @@
+export interface HtmlExtractorInterface<T> {
+  extract(
+    html: string,
+    pageUrl: string
+  ): T;
+}
+
 export interface Metadata {
   url: string;
   title: string;
@@ -74,50 +81,50 @@ export interface OpenGraphData {
   extras: Record<string, string>;
 }
 
-export interface Image {
+export type MediaType =
+  | "image"
+  | "video"
+  | "audio";
+
+export interface Media_Source {
   src: string;
-  alt: string;
-  title: string | null;
-  loading: "lazy" | "eager" | null;
-  decoding: "async" | "sync" | "auto" | null;
-  srcset: string[];
-  sizes: string | null;
+  type?: string; 
+  media?: string; 
 }
 
-export interface NavigationTiming {
-  dnsLookup: number;
-  tcpConnection: number;
-  tlsHandshake: number;
-  request: number;
-  response: number;
-  domInteractive: number;
-  domContentLoaded: number;
-  loadComplete: number;
-  totalPageLoad: number;
+export interface Media {
+  mediaType: MediaType;
+  src: string | null;
+  sources: Media_Source[];
+  alt?: string;
+  title?: string;
+  srcset?: string[];
+
+  width?: number;
+  height?: number;
+  sizes?: string | null;
+
+  loading?: string;
+  decoding?: string;
+
+  autoplay?: boolean;
+  controls?: boolean;
+  loop?: boolean;
+  muted?: boolean;
+  playsInline?: boolean;
+  preload?: string;
+
+  poster?: string;
+  crossorigin?: string;
 }
 
-export interface PaintTiming {
-  firstPaint?: number;
-  firstContentfulPaint?: number;
-}
-
-export interface BrowserMetrics {
-  documents: number | undefined;
-  frames: number | undefined;
-  nodes: number | undefined;
-  jsEventListeners: number | undefined;
-  layoutCount: number | undefined;
-  recalcStyleCount: number | undefined;
-  layoutDuration: number | undefined;
-  recalcStyleDuration: number | undefined;
-  scriptDuration: number | undefined;
-  taskDuration: number | undefined;
-  jsHeapUsedSize: number | undefined;
-  jsHeapTotalSize: number | undefined;
-}
-
-export interface PerformanceData {
-  navigation: NavigationTiming;
-  paint: PaintTiming;
-  browser: BrowserMetrics;
+export interface HtmlExtractorResult {
+  page_url: string;
+  metadata: Metadata;
+  content: Content;
+  links: Link[];
+  crawlable_links: string[];
+  structured_data: StructuredData[];
+  open_graph_data: OpenGraphData;
+  media?: Media[];
 }

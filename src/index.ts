@@ -1,5 +1,4 @@
 import { argv } from "node:process";
-import { type ExtractedPageData } from "./types.js";
 import ConcurrentCrawler from "./concurrent_crawler.js";
 import crawler_config from '../config.json' with {type: 'json'};
 
@@ -7,7 +6,7 @@ async function crawlSiteAsync(
   baseUrl: string,
   maxConcurrency: number,
   maxPages: number = 100,
-): Promise<Record<string, ExtractedPageData>> {
+): Promise<Record<string, any>> {
   const crawler = new ConcurrentCrawler(baseUrl, maxConcurrency, maxPages);
   return await crawler.crawl();
 }
@@ -30,9 +29,9 @@ async function main() {
   }
 
   try {
-    const pages = await crawlSiteAsync(url, maxConcurrency, maxPages);
+    const summary = await crawlSiteAsync(url, maxConcurrency, maxPages);
 
-    console.log('Crawling finished generated JSON report');
+    console.log(summary, '\nCrawling finished generated JSON report');
     process.exit(0);
   } catch (error) {
     console.error("Error occurred while crawling the site:", error);

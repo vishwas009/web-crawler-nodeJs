@@ -5,17 +5,12 @@ import pLimit from "p-limit";
 import { TimeoutError, type Browser, type Page, type HTTPResponse} from 'puppeteer'
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { type ExtractedPageData } from "./types.js";
-import { normalizeURL, extractPageData } from "./utils/crawl.js";
+import type { PageCrawlResult, CrawlSummary } from "./types.js";
+import { normalizeURL } from "./utils/crawl_utils.js";
 import crawler_config from '../config.json' with {type: 'json'};
-import { writeJSONReport_One } from "./utils/report.js";
-// import MetadataExtractor from "./extractors/MetadataExtractor.js";
-// import ContentExtractor from "./extractors/ContentExtractor.js";
-// import LinkExtractor from "./extractors/LinkExtractor.js";
-// import StructuredDataExtractor from "./extractors/StructuredDataExtractor.js";
-// import OpenGraphExtractor from "./extractors/OpenGraphExtractor.js";
-// import ImageExtractor from "./extractors/ImageExtractor.js";
-import PerformanceExtractor from "./extractors/RuntimeExtractors/PerformanceExtractor.js";
+import { writeJSONReport } from "./utils/report.js";
+import HtmlExtractor from "./extractors/HtmlExtractors/HtmlExtractor.js";
+import RuntimeExtractor from "./extractors/RuntimeExtractors/RuntimeExtractor.js";
 import ImageDownloadService from "./services/ImageDownloaderService.js";
 import DiskStorage from "./services/storage/DiskStorage.js";
 
@@ -26,14 +21,13 @@ export default class ConcurrentCrawler {
   private maxPages: number = 100;
   private shouldStop: boolean = false;
   private limit: ReturnType<typeof pLimit>;
-  private pages: Record<string, ExtractedPageData> = {};
-  private allTasks: Set<Promise<void>> = new Set();
   private visitedURLs: Set<string> = new Set();
   private browser: Browser | null = null;
   private config: Record<string, any> = {};
   private dirPath: string;
-  private imageDownloader: ImageDownloadService;
   private diskStorage: DiskStorage;
+  private htmlExtractor: HtmlExtractor;
+  private runtimeExtractor: RuntimeExtractor;
 
   constructor(baseUrl: string, maxConcurrency: number, maxPages: number = 100) {
     this.baseUrl = baseUrl;
@@ -44,11 +38,8 @@ export default class ConcurrentCrawler {
     this.limit = pLimit(maxConcurrency);
     this.config = crawler_config;
     this.diskStorage = new DiskStorage();
-
-    this.imageDownloader = new ImageDownloadService({ 
-      minSizeKB: this.config.SMALL_IMAGE_SIZE_KB,
-      timeout: 60000, // 60 seconds
-    }, this.diskStorage);
+    this.htmlExtractor = new HtmlExtractor();
+    this.runtimeExtractor = new RuntimeExtractor();
 
     puppeteer.use(StealthPlugin());
   }
@@ -60,7 +51,6 @@ export default class ConcurrentCrawler {
 
     if (this.visitedURLs.size >= this.maxPages) {
       this.shouldStop = true;
-      // console.log(`Reached max page limit of ${this.maxPages}. Stopping crawl.`,);
       return false;
     }
 
@@ -144,18 +134,43 @@ export default class ConcurrentCrawler {
     });
   }
 
-  private async scrape(url: string, output_dir: string, retries: number = 2): Promise<string> {
+  private async takeScreenshot(page: Page, output_dir: string): Promise<void> {
+    await page.mouse.move(1, 1);
+
+    await page.evaluate(() =>
+        new Promise(resolve =>
+            requestAnimationFrame(() =>
+                requestAnimationFrame(resolve)
+            )
+        )
+    );
+
+    await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
+  }
+
+  private async scrape(url: string, output_dir: string, retries: number = 2): Promise<PageCrawlResult> {
     let html = "";
+    let pageHtmlData = null;
+    let pageRuntimeData = null;
+    const tasksMap = new Map();
+    const imageDownloader = new ImageDownloadService({ 
+      minSizeKB: this.config.SMALL_IMAGE_SIZE_KB,
+      timeout: 30000, // 30 seconds
+    }, this.diskStorage);
+
     const blockedTypes = new Set([
       /*"image",*/
       "media",
       "font",
       /*'stylesheet'*/
     ]);
+    let success = false;
+
     const OUTPUT_DIR = path.resolve(output_dir, "images");
     await fs.promises.mkdir(OUTPUT_DIR, {recursive: true});
 
-    console.log(`Crawling: ${url}`);
+    console.log('\x1b[32mCRAWLING: \x1b[0m', url);
+    const start = performance.now();
 
     for (let i = 0; i <= retries; i++) {
       let page: Page | null = null;
@@ -176,15 +191,15 @@ export default class ConcurrentCrawler {
           const request = response.request();
 
           if (request.resourceType() === "image" && this.config.SAVE_IMAGES === true) {
-            this.imageDownloader.handleResponse(response, {prefix: OUTPUT_DIR});
+            imageDownloader.handleResponse(response, {prefix: OUTPUT_DIR});
           }
         });
 
-        page.on("requestfailed", (request: any) => {
-          if (request.resourceType() === "document") {
-            console.log("FAILED:", request.url(), request.failure()?.errorText);
-          }
-        });
+        // page.on("requestfailed", (request: any) => {
+        //   if (request.resourceType() === "document") {
+        //     console.log('\x1b[33mFAILED: \x1b[0m', request.url(), request.failure()?.errorText);
+        //   }
+        // });
 
         try {
           const pageResponse = await page.goto(url, {
@@ -197,144 +212,196 @@ export default class ConcurrentCrawler {
           }
         } catch (err) {
           if (err instanceof Error && (err instanceof TimeoutError || err.name === "TimeoutError")) {
-            console.log("Navigation timeout, continuing.");
-            await page.evaluate(() => window.stop());
+            console.log('\x1b[33mTIMEOUT: \x1b[0m', 'NAVIGATION');
+            
+            try {
+              await page.evaluate(() => window.stop());
+            } catch {}
           } else {
             throw err;
           }
         }
 
-        if(this.config.HEADLESS === false) {
-          console.log("Waiting for user input");
-          page.evaluate(() => {
-            alert('Page Launched in Headfull mode, press a key in terminal when done to continue crawling.');
-          });
-          const key = await this.waitForKeyPress();
-          console.log("Continuing Crawling");
-        }
+        // if(this.config.HEADLESS === false) {
+        //   console.log("Waiting for user input");
+        //   page.evaluate(() => {
+        //     alert('Page Launched in Headfull mode, press a key in terminal when done to continue crawling.');
+        //   });
+        //   const key = await this.waitForKeyPress();
+        //   console.log("Continuing Crawling");
+        // }
 
 
         try {
-          await page.waitForNetworkIdle({ idleTime: 1000, timeout: this.config.DEFAULT_TIMEOUT });
+          await page.waitForNetworkIdle({ idleTime: 500, timeout: this.config.DEFAULT_TIMEOUT });
         } catch (error) {
           if (error instanceof Error && (error instanceof TimeoutError || error.name === "TimeoutError")) {
-            console.log("waitForNetworkIdle timeout, continuing.");
+            console.log('\x1b[33mTIMEOUT: \x1b[0m', 'waitForNetworkIdle');
           } else {
             throw error;
           }
         }
 
+        await page.evaluate(() =>
+            new Promise(resolve =>
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(resolve)
+                )
+            )
+        );
         html = await page.content();
 
         if (html) {
-          // Extractors test code //
+          pageHtmlData = this.htmlExtractor.extract(html, url);
+          pageRuntimeData = await this.runtimeExtractor.extract(page, url);
 
-          // const metaExtractor = new MetadataExtractor();
-          // console.log(metaExtractor.extract(html, url));
-          
-          // const contentExtractor = new ContentExtractor();
-          // const content = contentExtractor.extract(html, url);
-          // const linkExtractor = new LinkExtractor();
-          // const links = linkExtractor.extract(html, url);
-          // const structuredDataExtractor = new StructuredDataExtractor();
-          // const structuredData = structuredDataExtractor.extract(html, url);
-          // const openGraphExtractor = new OpenGraphExtractor();
-          // const openGraphData = openGraphExtractor.extract(html, url);
-          // const imageExtractor = new ImageExtractor();
-          // const images = imageExtractor.extract(html, url);
-          // const performanceExtractor = new PerformanceExtractor();
-          // const performanceData = await performanceExtractor.extract(page, url);
-          
-          // await fs.promises.writeFile(path.resolve(output_dir, 'performance.json'), JSON.stringify(performanceData, null, 2));
-          await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
+          const tasks: {key: string; promise: Promise<any>}[] = [
+            {key: 'imageDownloads', promise: imageDownloader.finish()} 
+          ];
+
+          if(this.config.TAKE_SCREENSHOT === true) {
+            tasks.push({key: 'screenshot', promise: this.takeScreenshot(page, output_dir)});
+          }
+
+          const trackedPromises = tasks.map(({ key, promise }) =>
+            promise.then(result => {
+              tasksMap.set(key, result);
+              return result;
+            })
+          );
+
+          const timeout = new Promise((_, reject) =>
+            setTimeout(() => {
+              reject(new Error('\x1b[33mTIMEOUT: \x1b[0m Timeout Rejecting rest pending tasks'));
+            }, this.config.ALL_TASKS_TIMEOUT),
+          );
+
+          try {
+            console.log('\x1b[32mINFO: \x1b[0m', 'Waiting for all tasks to complete');
+
+            await Promise.race([
+              Promise.allSettled(trackedPromises),
+              timeout,
+            ]);
+
+            console.log('\x1b[32mINFO: \x1b[0m', 'All Tasks Completed.');
+          } catch (error) {
+            console.log('\x1b[31mERROR: \x1b[0m', error instanceof Error ? error.message : error)
+          }
+
+          success = true;
           break;
         } else {
           throw new Error("No HTML");
         }
       } catch (error) {
-        console.log("Final Catch block");
         if (i < retries) {
           await new Promise((resolve) => setTimeout(resolve, 5000));
         }
 
-        console.log(
-          `Attempt ${i + 1}/${retries + 1} failed for ${url}\n Error: ${error instanceof Error ? error.message : error}`,
+        console.log('\x1b[31mERROR: \x1b[0m',
+          `ATTEMPT ${i + 1}/${retries + 1}: Failed for ${url}\n Error: ${error instanceof Error ? error.message : error}`,
         );
       } finally {
-        if (page) {
-          console.log(`Waiting for all tasks to complete.`);
+        if (page && !page.isClosed()) {
+          try {
+            page.removeAllListeners();
+            await page.close({ runBeforeUnload: false });
+          } catch (error) {
+            console.log('\x1b[31mERROR: \x1b[0m', error instanceof Error ? error.message : error);
+          }
 
-          // const timeout = new Promise((resolve) =>
-          //   setTimeout(() => {
-          //     console.log("Timeout Rejecting rest pending tasks");
-          //     resolve();
-          //   }, this.config.ALL_TASKS_TIMEOUT),
-          // );
-
-          // await Promise.race([
-          //   timeout,
-          //   Promise.allSettled(Array.from(imageTasks)),
-          // ]);
-
-          const downloadedImages = await this.imageDownloader.finish();
-          console.log(`Downloaded ${downloadedImages.length} images`);
-
-          console.log("All tasks completed");
-
-          await page.close();
           page = null;
         }
       }
     }
 
-    return html;
+    const end = performance.now();
+    console.log('\x1b[32mINFO: \x1b[0m', `Downloaded ${tasksMap.has('imageDownloads') ? tasksMap.get('imageDownloads').length : 0} images`);
+    
+    return {
+      crawlable_urls: pageHtmlData?.crawlable_links || [],
+      page_url: url,
+      extracted_data: {
+        pageHtmlData: pageHtmlData || {},
+        pageRuntimeData: pageRuntimeData || {}
+      },
+      success,
+      crawl_time: end - start
+    };
   }
 
-  private async crawlPage(baseURL: string, currentURL: string = baseURL): Promise<void> {
-    if (this.shouldStop) {
-      return;
-    }
+  private async crawlPage(baseURL: string): Promise<CrawlSummary> {
+    let currentUrls: Set<string> = new Set();
+    let p_success = 0;
+    let pages_crawled = 0;
+    let total_pages_time = 0;
 
-    const urlObj = new URL(currentURL);
-    if (urlObj.hostname !== this.baseHost) {
-      return;
-    }
+    currentUrls.add(baseURL);
+    const start = performance.now();
 
-    const normalizedURL = normalizeURL(currentURL);
-    if (!this.addPageVisit(normalizedURL)) {
-      return;
-    }
+    while (currentUrls.size > 0) {
+      let promises: Promise<PageCrawlResult>[] = [];
 
-    console.log(`Url added to queue: ${currentURL}`);
-
-    const output_dir = path.resolve(this.dirPath, urlObj.pathname.replaceAll('/', '_'));
-    const html = await this.limit(async () => {
-      await fs.promises.mkdir(output_dir, {recursive: true});
-      return this.scrape(currentURL, output_dir);
-    });
-
-    if (html) {
-      const pageData = extractPageData(html, currentURL);
-      writeJSONReport_One(pageData, output_dir);
-      this.pages[normalizedURL] = pageData;
-      const urls = pageData.outgoing_links;
-      const crawlPromises: Promise<void>[] = [];
-
-      for (const url of urls) {
+      for (const url of currentUrls) {
         if (this.shouldStop) break;
 
-        const task = this.crawlPage(baseURL, url);
-        this.allTasks.add(task);
-        task.finally(() => this.allTasks.delete(task));
-        crawlPromises.push(task);
+        const normalizedURL = normalizeURL(url);
+        if (!this.addPageVisit(normalizedURL)) {
+          continue;
+        }
+
+        console.log('\x1b[32mURL ADDED TO QUEUE: \x1b[0m', url);
+
+        const urlObj = new URL(url);
+        const output_dir = path.resolve(this.dirPath, urlObj.pathname.replaceAll("/", "_"));
+
+        promises.push(
+          this.limit(async () => {
+            await fs.promises.mkdir(output_dir, { recursive: true });
+
+            return this.scrape(url, output_dir);
+          }),
+        );
       }
 
-      await Promise.all(crawlPromises);
+      const res = await Promise.all(promises);
+      currentUrls.clear();
+
+      res.forEach(({ crawlable_urls, page_url, extracted_data, success, crawl_time }) => {
+        const urlObj = new URL(page_url);
+        pages_crawled++;
+        p_success += (success === true) ? 1 : 0;
+        total_pages_time += crawl_time;
+
+        writeJSONReport(
+          extracted_data,
+          path.resolve(this.dirPath, urlObj.pathname.replaceAll("/", "_")),
+        );
+
+        if (!this.shouldStop) {
+          crawlable_urls.forEach((url) => {
+            if (!this.visitedURLs.has(normalizeURL(url))) {
+              currentUrls.add(url);
+            }
+          });
+        }
+      });
+    }
+
+    const end = performance.now();
+
+    return {
+      pages_crawled,
+      success: p_success,
+      failed: pages_crawled - p_success,
+      average_page_time: (total_pages_time / pages_crawled) / 1000,
+      total_duration: (end - start) / 1000
     }
   }
 
-  async crawl(): Promise<Record<string, ExtractedPageData>> {
-    let rootTask: Promise<void> | undefined;
+  async crawl(): Promise<Record<string, any>> {
+    let summary = {};
 
     try {
       this.browser = await puppeteer.launch({
@@ -352,23 +419,15 @@ export default class ConcurrentCrawler {
       });
 
       await fs.promises.mkdir(this.dirPath, { recursive: true });
-      rootTask = this.crawlPage(this.baseUrl);
-      this.allTasks.add(rootTask);
-
-      await rootTask;
-      await Promise.allSettled(Array.from(this.allTasks));
+      summary = await this.crawlPage(this.baseUrl);
     } catch (error) {
-      console.error("Error occurred while crawling the site:", error);
+      console.log('\x1b[31mERROR: \x1b[0m', error);
     } finally {
-      if (rootTask) {
-        this.allTasks.delete(rootTask);
-      }
-
       if (this.browser) {
         await this.browser.close();
       }
     }
 
-    return this.pages;
+    return summary;
   }
 }
