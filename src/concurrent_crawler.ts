@@ -137,7 +137,13 @@ export default class ConcurrentCrawler {
   private async takeScreenshot(page: Page, output_dir: string): Promise<void> {
     await page.mouse.move(1, 1);
 
-    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => resolve())));
+    await page.evaluate(() =>
+        new Promise(resolve =>
+            requestAnimationFrame(() =>
+                requestAnimationFrame(resolve)
+            )
+        )
+    );
 
     await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
   }
@@ -236,6 +242,13 @@ export default class ConcurrentCrawler {
           }
         }
 
+        await page.evaluate(() =>
+            new Promise(resolve =>
+                requestAnimationFrame(() =>
+                    requestAnimationFrame(resolve)
+                )
+            )
+        );
         html = await page.content();
 
         if (html) {
@@ -243,9 +256,12 @@ export default class ConcurrentCrawler {
           pageRuntimeData = await this.runtimeExtractor.extract(page, url);
 
           const tasks: {key: string; promise: Promise<any>}[] = [
-            {key: 'screenshot', promise: this.takeScreenshot(page, output_dir)},
             {key: 'imageDownloads', promise: imageDownloader.finish()} 
           ];
+
+          if(this.config.TAKE_SCREENSHOT === true) {
+            tasks.push({key: 'screenshot', promise: this.takeScreenshot(page, output_dir)});
+          }
 
           const trackedPromises = tasks.map(({ key, promise }) =>
             promise.then(result => {
