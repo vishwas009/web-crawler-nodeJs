@@ -19,6 +19,8 @@ export abstract class StorageService {
 
     }
 
+    abstract get type(): string ;
+
     // protected normalizeExtension(...) {}
 
     // protected sanitizeFileName(...) {}

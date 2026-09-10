@@ -9,5 +9,10 @@
     "SAVE_IMAGES": false,
     "IGNORE_SMALL_IMAGES": true,
     "SMALL_IMAGE_SIZE_KB": 2,
-    "TAKE_SCREENSHOT": true
+    "TAKE_SCREENSHOT": true,
+    "ONLINE_STORAGE": false,
+    "AWS_REGION": "",
+    "AWS_ACCESS_KEY_ID": "",
+    "AWS_SECRET_ACCESS_KEY": "",
+    "AWS_S3_BUCKET_NAME": ""
 }

@@ -24,8 +24,11 @@ export default class DiskStorage extends StorageService {
 
       return { path: filePath, size: item.data.length };
     } catch (error) {
-      console.log(error instanceof Error ? error.message : error);
-      return { path: "", size: 0 };
+      throw error; // Rethrow the error to be handled by the caller
     }
+  }
+
+  get type(): string {
+    return "OFFLINE_STORAGE";
   }
 }

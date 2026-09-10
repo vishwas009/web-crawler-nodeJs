@@ -6,6 +6,7 @@ import { type StorageService } from "./storage/StorageService.js";
 export default class ImageDownloadService {
   private tasks = new Set<Promise<string | null>>();
   private downloaded = new Set<string>();
+  private downloads = new Set<string>();
 
   private readonly minSizeBytes: number;
   private readonly timeout: number;
@@ -18,7 +19,7 @@ export default class ImageDownloadService {
   }
 
   handleResponse(response: HTTPResponse, context: StorageContext): void {
-    if (!this.isImage(response) || this.downloaded.has(response.url())) {
+    if (!this.isImage(response) || this.downloads.has(response.url())) {
       return;
     }
 
@@ -31,7 +32,7 @@ export default class ImageDownloadService {
   }
 
   async finish(): Promise<string[]> {
-    const downloads = Promise.allSettled(this.tasks);
+    const pending_downloads = Promise.allSettled(this.tasks);
 
     // To handle the new incoming tasks while waiting for the existing ones to finish,
     // we can use a loop to keep checking if there are any remaining tasks.
@@ -49,7 +50,7 @@ export default class ImageDownloadService {
     });
 
     try {
-      await Promise.race([downloads, timer]);
+      await Promise.race([pending_downloads, timer]);
     } catch (error) {
       console.log('\x1b[33mTIMEOUT: \x1b[0m', "Image download timeout reached. Some images may not have been downloaded.");
     } finally {
@@ -63,6 +64,8 @@ export default class ImageDownloadService {
 
   private async download(response: HTTPResponse, context: StorageContext): Promise<string | null> {
     try {
+      this.downloads.add(response.url());
+
       const headers = response.headers();
       const contentType = headers["content-type"] ?? "";
       const contentLength = Number(headers["content-length"] ?? 0);
@@ -95,6 +98,8 @@ export default class ImageDownloadService {
       return response.url();
     } catch (error) {
       console.log('\x1b[33mFAILED DOWNLOADING IMAGE: \x1b[0m', response.url());
+      console.log('\x1b[33mERROR: \x1b[0m', error instanceof Error ? error.message : error);
+      
       return null;
     }
   }

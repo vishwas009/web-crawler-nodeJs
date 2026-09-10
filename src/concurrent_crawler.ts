@@ -2,6 +2,7 @@ import path from "node:path";
 import fs from 'node:fs'
 import readline from 'readline'
 import pLimit from "p-limit";
+import { S3Client } from "@aws-sdk/client-s3";
 import { TimeoutError, type Browser, type Page, type HTTPResponse} from 'puppeteer'
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
@@ -12,7 +13,9 @@ import { writeJSONReport } from "./utils/report.js";
 import HtmlExtractor from "./extractors/HtmlExtractors/HtmlExtractor.js";
 import RuntimeExtractor from "./extractors/RuntimeExtractors/RuntimeExtractor.js";
 import ImageDownloadService from "./services/ImageDownloaderService.js";
+import { StorageService } from "./services/storage/StorageService.js";
 import DiskStorage from "./services/storage/DiskStorage.js";
+import S3_Storage from "./services/storage/S3_Storage.js";
 
 export default class ConcurrentCrawler {
   private baseUrl: string;
@@ -25,7 +28,7 @@ export default class ConcurrentCrawler {
   private browser: Browser | null = null;
   private config: Record<string, any> = {};
   private dirPath: string;
-  private diskStorage: DiskStorage;
+  private storageService: StorageService;
   private htmlExtractor: HtmlExtractor;
   private runtimeExtractor: RuntimeExtractor;
 
@@ -37,7 +40,24 @@ export default class ConcurrentCrawler {
     // this.maxConcurrency = maxConcurrency;
     this.limit = pLimit(maxConcurrency);
     this.config = crawler_config;
-    this.diskStorage = new DiskStorage();
+
+    if(this.config.ONLINE_STORAGE === true) {
+      try {
+        this.storageService = new S3_Storage(new S3Client({
+          region: this.config.AWS_REGION,
+          credentials: {
+            accessKeyId: this.config.AWS_ACCESS_KEY_ID,
+            secretAccessKey: this.config.AWS_SECRET_ACCESS_KEY,
+          }
+        }));
+      } catch (error) {
+        console.error("Error occurred while initializing S3 storage falling to Disk Storage:", error instanceof Error ? error.message : error);
+        this.storageService = new DiskStorage();
+      }
+    } else {
+      this.storageService = new DiskStorage();
+    }
+    
     this.htmlExtractor = new HtmlExtractor();
     this.runtimeExtractor = new RuntimeExtractor();
 
@@ -145,7 +165,7 @@ export default class ConcurrentCrawler {
         )
     );
 
-    await page.screenshot({path: path.resolve(output_dir, 'screenshot.png')});
+    await page.screenshot({path: path.join(output_dir, 'screenshot.png')});
   }
 
   private async scrape(url: string, output_dir: string, retries: number = 2): Promise<PageCrawlResult> {
@@ -153,10 +173,11 @@ export default class ConcurrentCrawler {
     let pageHtmlData = null;
     let pageRuntimeData = null;
     const tasksMap = new Map();
+
     const imageDownloader = new ImageDownloadService({ 
       minSizeKB: this.config.SMALL_IMAGE_SIZE_KB,
       timeout: 30000, // 30 seconds
-    }, this.diskStorage);
+    }, this.storageService);
 
     const blockedTypes = new Set([
       /*"image",*/
@@ -165,9 +186,15 @@ export default class ConcurrentCrawler {
       /*'stylesheet'*/
     ]);
     let success = false;
+    let OUTPUT_DIR = '';
 
-    const OUTPUT_DIR = path.resolve(output_dir, "images");
-    await fs.promises.mkdir(OUTPUT_DIR, {recursive: true});
+    if(this.storageService.type === "ONLINE_STORAGE") {
+      const frags = output_dir.split(path.sep);
+      OUTPUT_DIR = path.posix.join(frags.at(-2) || '', frags.at(-1) || '', "images");
+    } else {
+      OUTPUT_DIR = path.join(output_dir, "images");
+      await fs.promises.mkdir(OUTPUT_DIR, {recursive: true});
+    }
 
     console.log('\x1b[32mCRAWLING: \x1b[0m', url);
     const start = performance.now();
@@ -191,7 +218,11 @@ export default class ConcurrentCrawler {
           const request = response.request();
 
           if (request.resourceType() === "image" && this.config.SAVE_IMAGES === true) {
-            imageDownloader.handleResponse(response, {prefix: OUTPUT_DIR});
+            imageDownloader.handleResponse(response, 
+            {
+              prefix: OUTPUT_DIR, 
+              bucket_name: this.config.AWS_S3_BUCKET_NAME
+            });
           }
         });
 
@@ -354,7 +385,7 @@ export default class ConcurrentCrawler {
         console.log('\x1b[32mURL ADDED TO QUEUE: \x1b[0m', url);
 
         const urlObj = new URL(url);
-        const output_dir = path.resolve(this.dirPath, urlObj.pathname.replaceAll("/", "_"));
+        const output_dir = path.join(this.dirPath, urlObj.pathname.replaceAll("/", "_"));
 
         promises.push(
           this.limit(async () => {
@@ -376,7 +407,7 @@ export default class ConcurrentCrawler {
 
         writeJSONReport(
           extracted_data,
-          path.resolve(this.dirPath, urlObj.pathname.replaceAll("/", "_")),
+          path.join(this.dirPath, urlObj.pathname.replaceAll("/", "_")),
         );
 
         if (!this.shouldStop) {
